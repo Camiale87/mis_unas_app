@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1046305282341",
+    "project_id": "mis-unas-app",
+    "storage_bucket": "mis-unas-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1046305282341:android:1d869a0becd5385903a2cc",
+        "android_client_info": {
+          "package_name": "com.example.mis_unas_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDm6vyD4A9i5KRWFcD94mg4F9cmWwnwEy8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
