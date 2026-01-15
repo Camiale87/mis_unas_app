@@ -130,7 +130,7 @@ class CatalogoPrincipal extends StatelessWidget {
                       title: Text(ui["nombre"], style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(ui["precio"], style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold)),
                       trailing: ElevatedButton.icon(
-                        onPressed: () => launchUrl(Uri.parse("https://wa.me/56985574246?text=Hola! Me interesa este diseño: ${ui["nombre"]}")),
+                        onPressed: () => launchUrl(Uri.parse("https://wa.me/56986257924?text=Hola! Me interesa este diseño: ${ui["nombre"]}")),
                         icon: const Icon(Icons.chat, color: Colors.green),
                         label: const Text("Consultar"),
                       ),
