@@ -8,6 +8,8 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+// --- NUEVO IMPORT ---
+import 'asistente_ia.dart'; 
 
 ValueNotifier<ThemeMode> temaGlobal = ValueNotifier(ThemeMode.system);
 const List<String> categoriasApp = ['Todas', 'Esmaltado', 'Esculpidas', 'Nail Art', 'Pies'];
@@ -91,6 +93,19 @@ class _CatalogoPrincipalState extends State<CatalogoPrincipal> {
                 _mostrarPopupPregunta(context);
               },
             ),
+            // --- NUEVO BOTÓN PARA LA IA ---
+            ListTile(
+              leading: const Icon(Icons.auto_awesome, color: Colors.pink),
+              title: const Text("Asistente IA"),
+              subtitle: const Text("Asesoría personalizada"),
+              onTap: () {
+                Navigator.pop(context); // Cierra el menú
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const AsistenteIA())
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -128,7 +143,11 @@ class _CatalogoPrincipalState extends State<CatalogoPrincipal> {
                 Map datos = snapshot.data!.snapshot.value as Map;
                 List items = datos.entries
                     .map((e) => {"id": e.key, ...e.value as Map})
-                    .where((item) => filtroActual == 'Todas' || item["categoria"] == filtroActual)
+                    .where((item) {
+                      if (filtroActual == 'Todas') return true;
+                      String categoriaItem = item["categoria"] ?? 'Esmaltado';
+                      return categoriaItem == filtroActual;
+                    })
                     .toList();
 
                 if (items.isEmpty) return const Center(child: Text("Sin diseños en esta categoría"));
@@ -168,7 +187,11 @@ class _CatalogoPrincipalState extends State<CatalogoPrincipal> {
                             title: Text(ui["nombre"], style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text(ui["precio"], style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold)),
                             trailing: ElevatedButton.icon(
-                              onPressed: () => launchUrl(Uri.parse("https://wa.me/56986257924?text=Hola! Me interesa este diseño: ${ui["nombre"]}")),
+                              onPressed: () {
+                                String primeraFoto = fotos.isNotEmpty ? fotos[0] : "";
+                                String mensaje = "¡Hola! Me interesa este diseño: *${ui["nombre"]}*\n\nPrecio: ${ui["precio"]}\n\nVer imagen: $primeraFoto";
+                                launchUrl(Uri.parse("https://wa.me/56986257924?text=${Uri.encodeComponent(mensaje)}"));
+                              },
                               icon: const Icon(Icons.chat, color: Colors.green),
                               label: const Text("Consultar"),
                             ),
@@ -345,7 +368,6 @@ class _PanelAdminState extends State<PanelAdmin> {
         ),
         body: TabBarView(
           children: [
-            // PESTAÑA 1: MENSAJES
             StreamBuilder(
               stream: FirebaseDatabase.instance.ref("preguntas").onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
@@ -365,7 +387,6 @@ class _PanelAdminState extends State<PanelAdmin> {
                 );
               },
             ),
-            // PESTAÑA 2: GESTIÓN
             StreamBuilder(
               stream: FirebaseDatabase.instance.ref("trabajos").onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
