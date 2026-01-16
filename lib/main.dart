@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 ValueNotifier<ThemeMode> temaGlobal = ValueNotifier(ThemeMode.system);
+const List<String> categoriasApp = ['Todas', 'Esmaltado', 'Esculpidas', 'Nail Art', 'Pies'];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +35,6 @@ class MiSalonApp extends StatelessWidget {
   }
 }
 
-// --- VISTA PARA AMPLIAR FOTOS ---
 class VisorFotos extends StatelessWidget {
   final List fotos;
   final int indiceInicial;
@@ -57,8 +57,14 @@ class VisorFotos extends StatelessWidget {
   }
 }
 
-class CatalogoPrincipal extends StatelessWidget {
+class CatalogoPrincipal extends StatefulWidget {
   const CatalogoPrincipal({super.key});
+  @override
+  State<CatalogoPrincipal> createState() => _CatalogoPrincipalState();
+}
+
+class _CatalogoPrincipalState extends State<CatalogoPrincipal> {
+  String filtroActual = 'Todas';
 
   @override
   Widget build(BuildContext context) {
@@ -88,59 +94,94 @@ class CatalogoPrincipal extends StatelessWidget {
           ],
         ),
       ),
-      body: StreamBuilder(
-        stream: FirebaseDatabase.instance.ref("trabajos").onValue,
-        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("Cargando catálogo..."));
-          Map datos = snapshot.data!.snapshot.value as Map;
-          List items = datos.entries.map((e) => {"id": e.key, ...e.value as Map}).toList();
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                children: categoriasApp.map((cat) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(cat),
+                    selected: filtroActual == cat,
+                    onSelected: (bool selected) {
+                      setState(() { filtroActual = cat; });
+                    },
+                    selectedColor: Colors.pink[100],
+                    labelStyle: TextStyle(color: filtroActual == cat ? Colors.pink : null),
+                  ),
+                )).toList(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder(
+              stream: FirebaseDatabase.instance.ref("trabajos").onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("Catálogo vacío"));
+                
+                Map datos = snapshot.data!.snapshot.value as Map;
+                List items = datos.entries
+                    .map((e) => {"id": e.key, ...e.value as Map})
+                    .where((item) => filtroActual == 'Todas' || item["categoria"] == filtroActual)
+                    .toList();
 
-          return ListView.builder(
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final ui = items[index];
-              List fotos = ui["imagenes"] ?? [ui["imagen"]];
-              final PageController controller = PageController();
+                if (items.isEmpty) return const Center(child: Text("Sin diseños en esta categoría"));
 
-              return Card(
-                margin: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: 350,
-                      child: Stack(
+                return ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final ui = items[index];
+                    List fotos = ui["imagenes"] ?? [ui["imagen"]];
+                    final PageController controller = PageController();
+
+                    return Card(
+                      margin: const EdgeInsets.all(12),
+                      child: Column(
                         children: [
-                          PageView.builder(
-                            controller: controller,
-                            itemCount: fotos.length,
-                            itemBuilder: (context, i) => GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => VisorFotos(fotos: fotos, indiceInicial: i))),
-                              child: Image.network(fotos[i], fit: BoxFit.cover, width: double.infinity),
+                          SizedBox(
+                            height: 350,
+                            child: Stack(
+                              children: [
+                                PageView.builder(
+                                  controller: controller,
+                                  itemCount: fotos.length,
+                                  itemBuilder: (context, i) => GestureDetector(
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => VisorFotos(fotos: fotos, indiceInicial: i))),
+                                    child: Image.network(fotos[i], fit: BoxFit.cover, width: double.infinity),
+                                  ),
+                                ),
+                                if (fotos.length > 1)
+                                  Positioned(
+                                    bottom: 10, left: 0, right: 0,
+                                    child: Center(child: SmoothPageIndicator(controller: controller, count: fotos.length, effect: const ExpandingDotsEffect(activeDotColor: Colors.pink, dotHeight: 10, dotWidth: 10))),
+                                  ),
+                              ],
                             ),
                           ),
-                          if (fotos.length > 1)
-                            Positioned(
-                              bottom: 10, left: 0, right: 0,
-                              child: Center(child: SmoothPageIndicator(controller: controller, count: fotos.length, effect: const ExpandingDotsEffect(activeDotColor: Colors.pink, dotHeight: 10, dotWidth: 10))),
+                          ListTile(
+                            title: Text(ui["nombre"], style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(ui["precio"], style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold)),
+                            trailing: ElevatedButton.icon(
+                              onPressed: () => launchUrl(Uri.parse("https://wa.me/56986257924?text=Hola! Me interesa este diseño: ${ui["nombre"]}")),
+                              icon: const Icon(Icons.chat, color: Colors.green),
+                              label: const Text("Consultar"),
                             ),
+                          ),
                         ],
                       ),
-                    ),
-                    ListTile(
-                      title: Text(ui["nombre"], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(ui["precio"], style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold)),
-                      trailing: ElevatedButton.icon(
-                        onPressed: () => launchUrl(Uri.parse("https://wa.me/56986257924?text=Hola! Me interesa este diseño: ${ui["nombre"]}")),
-                        icon: const Icon(Icons.chat, color: Colors.green),
-                        label: const Text("Consultar"),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -185,36 +226,45 @@ class PanelAdmin extends StatefulWidget {
 class _PanelAdminState extends State<PanelAdmin> {
   bool subiendo = false;
 
-  // --- FUNCIÓN PARA EDITAR TRABAJO ---
   void _editarTrabajo(BuildContext context, String id, Map data) {
     TextEditingController nom = TextEditingController(text: data["nombre"]);
     TextEditingController pre = TextEditingController(text: data["precio"]);
+    String catEdit = data["categoria"] ?? 'Esmaltado';
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Editar Diseño"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nom, decoration: const InputDecoration(labelText: "Nombre")),
-            TextField(controller: pre, decoration: const InputDecoration(labelText: "Precio")),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Editar Diseño"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nom, decoration: const InputDecoration(labelText: "Nombre")),
+              TextField(controller: pre, decoration: const InputDecoration(labelText: "Precio")),
+              const SizedBox(height: 10),
+              DropdownButton<String>(
+                value: catEdit,
+                isExpanded: true,
+                items: categoriasApp.where((c) => c != 'Todas').map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (v) => setDialogState(() => catEdit = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+            ElevatedButton(
+              onPressed: () {
+                FirebaseDatabase.instance.ref("trabajos").child(id).update({
+                  "nombre": nom.text,
+                  "precio": pre.text,
+                  "categoria": catEdit,
+                });
+                Navigator.pop(context);
+              }, 
+              child: const Text("Guardar")
+            )
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
-          ElevatedButton(
-            onPressed: () {
-              FirebaseDatabase.instance.ref("trabajos").child(id).update({
-                "nombre": nom.text,
-                "precio": pre.text,
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Diseño actualizado")));
-            }, 
-            child: const Text("Guardar Cambios")
-          )
-        ],
       ),
     );
   }
@@ -225,42 +275,58 @@ class _PanelAdminState extends State<PanelAdmin> {
 
     TextEditingController nom = TextEditingController();
     TextEditingController pre = TextEditingController();
+    String categoriaElegida = 'Esmaltado';
 
     if (!mounted) return;
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Nuevo Trabajo"),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text("${images.length} fotos seleccionadas"),
-        TextField(controller: nom, decoration: const InputDecoration(hintText: "Nombre")),
-        TextField(controller: pre, decoration: const InputDecoration(hintText: "Precio")),
-      ]),
-      actions: [
-        ElevatedButton(onPressed: () async {
-          setState(() => subiendo = true);
-          Navigator.pop(c);
-          
-          List<String> linksSubidos = [];
-          try {
-            for (var img in images) {
-              var request = http.MultipartRequest('POST', Uri.parse('https://api.imgbb.com/1/upload?key=37d516874cdb4fb1e250be7f293af619'));
-              request.files.add(await http.MultipartFile.fromPath('image', img.path));
-              var response = await request.send();
-              var responseData = await response.stream.bytesToString();
-              var json = jsonDecode(responseData);
-              linksSubidos.add(json['data']['url']);
-            }
+    showDialog(context: context, builder: (c) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text("Nuevo Trabajo"),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text("${images.length} fotos seleccionadas"),
+            TextField(controller: nom, decoration: const InputDecoration(hintText: "Nombre")),
+            TextField(controller: pre, decoration: const InputDecoration(hintText: "Precio")),
+            const SizedBox(height: 15),
+            const Text("Categoría:", style: TextStyle(fontSize: 12)),
+            DropdownButton<String>(
+              value: categoriaElegida,
+              isExpanded: true,
+              items: categoriasApp.where((c) => c != 'Todas').map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              onChanged: (v) => setDialogState(() => categoriaElegida = v!),
+            ),
+          ]),
+        ),
+        actions: [
+          ElevatedButton(onPressed: () async {
+            setState(() => subiendo = true);
+            Navigator.pop(c);
+            
+            List<String> linksSubidos = [];
+            try {
+              for (var img in images) {
+                var request = http.MultipartRequest('POST', Uri.parse('https://api.imgbb.com/1/upload?key=37d516874cdb4fb1e250be7f293af619'));
+                request.files.add(await http.MultipartFile.fromPath('image', img.path));
+                var response = await request.send();
+                var responseData = await response.stream.bytesToString();
+                var json = jsonDecode(responseData);
+                linksSubidos.add(json['data']['url']);
+              }
 
-            await FirebaseDatabase.instance.ref("trabajos").push().set({
-              "nombre": nom.text, "precio": pre.text, "imagenes": linksSubidos
-            });
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ ¡Publicado con éxito!")));
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Error al subir: $e")));
-          } finally {
-            setState(() => subiendo = false);
-          }
-        }, child: const Text("Publicar"))
-      ],
+              await FirebaseDatabase.instance.ref("trabajos").push().set({
+                "nombre": nom.text, 
+                "precio": pre.text, 
+                "imagenes": linksSubidos,
+                "categoria": categoriaElegida
+              });
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Publicado")));
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Error: $e")));
+            } finally {
+              if (mounted) setState(() => subiendo = false);
+            }
+          }, child: const Text("Publicar"))
+        ],
+      ),
     ));
   }
 
@@ -279,17 +345,17 @@ class _PanelAdminState extends State<PanelAdmin> {
         ),
         body: TabBarView(
           children: [
-            // PESTAÑA 1: MENSAJES RECIBIDOS
+            // PESTAÑA 1: MENSAJES
             StreamBuilder(
               stream: FirebaseDatabase.instance.ref("preguntas").onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("No hay mensajes"));
+                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("Sin mensajes"));
                 Map datos = snapshot.data!.snapshot.value as Map;
                 return ListView(
                   children: datos.entries.map((e) => Card(
                     child: ListTile(
                       title: Text(e.value["mensaje"]),
-                      subtitle: Text("📞 ${e.value["telefono"]}\n${e.value["fecha"]}"),
+                      subtitle: Text("📞 ${e.value["telefono"]}"),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => FirebaseDatabase.instance.ref("preguntas").child(e.key).remove(),
@@ -299,11 +365,11 @@ class _PanelAdminState extends State<PanelAdmin> {
                 );
               },
             ),
-            // PESTAÑA 2: GESTIÓN DE CATÁLOGO (CON EDICIÓN)
+            // PESTAÑA 2: GESTIÓN
             StreamBuilder(
               stream: FirebaseDatabase.instance.ref("trabajos").onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("Catálogo vacío"));
+                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) return const Center(child: Text("Vacío"));
                 Map datos = snapshot.data!.snapshot.value as Map;
                 return ListView(
                   children: datos.entries.map((e) {
@@ -313,18 +379,12 @@ class _PanelAdminState extends State<PanelAdmin> {
                           ? Image.network(data["imagenes"][0], width: 50, height: 50, fit: BoxFit.cover) 
                           : const Icon(Icons.image),
                       title: Text(data["nombre"]),
-                      subtitle: Text(data["precio"]),
+                      subtitle: Text("${data["precio"]} - ${data["categoria"] ?? 'Sin Cat.'}"),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue), // BOTÓN PARA EDITAR
-                            onPressed: () => _editarTrabajo(context, e.key, data),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => FirebaseDatabase.instance.ref("trabajos").child(e.key).remove(),
-                          ),
+                          IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _editarTrabajo(context, e.key, data)),
+                          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => FirebaseDatabase.instance.ref("trabajos").child(e.key).remove()),
                         ],
                       ),
                     );
